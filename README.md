@@ -5,7 +5,7 @@ Planned project structure:
 
 Code quality assurance with pre-commit hooks, GitHub Actions, and pytest
 Real data augmented with data synthesis
-Grading diifficulty via a Transformer architecture
+Grading difficulty via a Transformer architecture
 Model implementation in PyTorch
 Model training and basic tracking and metrics via PyTorch Lightning and torchmetrics
 Experiment tracking, hyperparameter tuning, and model versioning with W&B

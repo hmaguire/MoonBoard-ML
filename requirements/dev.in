@@ -28,5 +28,5 @@ pandas
 scikit-learn
 einops
 jupyter
-importlib-metadata<=5
+importlib-metadata==4.8.3
 flake8-for-pycharm

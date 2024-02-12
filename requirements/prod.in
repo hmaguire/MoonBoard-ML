@@ -15,4 +15,4 @@ torch>=2.1,<2.2
 torchvision>=0.16,<0.17
 pandas
 scikit-learn
-importlib-metadata<=5
+importlib-metadata==4.8.3

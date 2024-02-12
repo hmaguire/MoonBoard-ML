@@ -113,7 +113,7 @@ idna==3.6
     #   httpx
     #   requests
     #   yarl
-importlib-metadata==7.0.1
+importlib-metadata==5.0.0
     # via -r requirements/prod.in
 importlib-resources==6.1.1
     # via gradio

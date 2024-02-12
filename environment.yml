@@ -1,0 +1,10 @@
+name: moonboard-grade_predictor-ml
+channels:
+  - pytorch
+#  - nvidia
+  - defaults
+dependencies:
+  - python=3.10  # versioned to match Google Colab  # version also pinned in Dockerfile
+  - pytorch=2.1.1  # versioned to match Google Colab
+#  - pytorch-cuda=12.1  # versioned to match Google Colab
+  - pip=23.1.2  # versioned to match Google Colab  # version also pinned in Dockerfile

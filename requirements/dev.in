@@ -28,3 +28,4 @@ pandas
 scikit-learn
 einops
 jupyter
+flake8-for-pycharm

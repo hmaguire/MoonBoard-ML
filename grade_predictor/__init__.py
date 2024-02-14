@@ -1,1 +1,1 @@
-"""Modules for creating and running a text recognizer."""
+"""Modules for creating and running a moondboard grade predictor."""

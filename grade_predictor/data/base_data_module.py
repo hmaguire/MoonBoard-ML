@@ -4,13 +4,13 @@ import os
 from pathlib import Path
 from typing import Collection, Dict, Optional, Tuple, Union
 
-import pytorch_lightning as pl
-import torch
-from torch.utils.data import ConcatDataset, DataLoader
-
 from grade_predictor import util
 from grade_predictor.data.util import BaseDataset
 import grade_predictor.metadata.shared as metadata
+
+import pytorch_lightning as pl
+import torch
+from torch.utils.data import ConcatDataset, DataLoader
 
 
 def load_and_print_info(data_module_class) -> None:
@@ -24,22 +24,8 @@ def load_and_print_info(data_module_class) -> None:
     print(dataset)
 
 
-def _download_raw_dataset(metadata: Dict, dl_dirname: Path) -> Path:
-    dl_dirname.mkdir(parents=True, exist_ok=True)
-    filename = dl_dirname / metadata["filename"]
-    if filename.exists():
-        return filename
-    print(f"Downloading raw dataset from {metadata['url']} to {filename}...")
-    util.download_url(metadata["url"], filename)
-    print("Computing SHA-256...")
-    sha256 = util.compute_sha256(filename)
-    if sha256 != metadata["sha256"]:
-        raise ValueError("Downloaded data file SHA-256 does not match that listed in metadata document.")
-    return filename
-
-
 BATCH_SIZE = 128
-NUM_AVAIL_CPUS = len(os.sched_getaffinity(0))
+NUM_AVAIL_CPUS = os.cpu_count()
 NUM_AVAIL_GPUS = torch.cuda.device_count()
 
 # sensible multiprocessing defaults: at most one worker per CPU
@@ -107,6 +93,15 @@ class BaseDataModule(pl.LightningDataModule):
         Here is where we typically split into train, validation, and test. This is done once per GPU in a DDP setting.
         Should assign `torch Dataset` objects to self.data_train, self.data_val, and optionally self.data_test.
         """
+
+    def trainval_dataloader(self):
+        return DataLoader(
+            self.data_trainval,
+            shuffle=True,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=self.on_gpu,
+        )
 
     def train_dataloader(self):
         return DataLoader(

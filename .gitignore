@@ -5,7 +5,7 @@ data/interim
 
 
 # Editors
-.idea
+.idea/
 *.sw?
 *~
 
@@ -20,7 +20,7 @@ __pycache__
 .ipynb_checkpoints
 *.nbconvert*.ipynb
 .notebook_test.sh
-notebooks/mbtransformer.ipynb
+.notebooks/mbtransformer.ipynb
 
 # Distribution / packaging
 .Python

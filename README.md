@@ -1,5 +1,6 @@
 # MoonBoard-ML
-ML model for predicting the difficulty of MoonBoard climbs using FSDL
+ML model for predicting the difficulty of MoonBoard (popular climbing wall with standardized 
+climbing holds and hold layout) climbs using FSDL
 (fullstackdeeplearning.com) best practices.
 
 **Planned project structure:**

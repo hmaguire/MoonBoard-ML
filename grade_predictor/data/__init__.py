@@ -13,4 +13,3 @@ hierarchy.
 from .util import BaseDataset
 from .base_data_module import BaseDataModule
 from .mb2016 import MB2016
-

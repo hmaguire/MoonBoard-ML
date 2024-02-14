@@ -1,4 +1,5 @@
 """Utility functions for text_recognizer module."""
+
 import contextlib
 import os
 from pathlib import Path

@@ -17,7 +17,7 @@ ML model for predicting the difficulty of MoonBoard climbs using FSDL
 
 **Current Progress:**
 * Ingestion of raw MoonBoard climbs data into pyTorch Dataset under a pyTorch
-Lightning DataModule (grade_predictor/data/mb2016.py). 
+Lightning DataModule (grade_predictor/data/mb2016.py).
 
 **In Progress:**
 * Train and test split of dataset and their dataloaders.
@@ -29,8 +29,8 @@ Lightning DataModule (grade_predictor/data/mb2016.py).
 * 2D (x,y coords) relative position of holds embedding
 * Investigate weighted loss function, oversampling and undersampling for imbalanced dataset
 
-For an overview of the planned MoonBoard Grader application architecture, click the badge below to open 
-the FSDL interactive Jupyter notebook on Google Colab that demonstrates 
+For an overview of the planned MoonBoard Grader application architecture, click the badge below to open
+the FSDL interactive Jupyter notebook on Google Colab that demonstrates
 their Text Recognizer application architecture which will be re-implemented.
 
 <div align="center">

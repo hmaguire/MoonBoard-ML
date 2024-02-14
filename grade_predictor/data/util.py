@@ -1,7 +1,7 @@
 """Base Dataset class."""
+
 from typing import Any, Callable, Dict, Sequence, Tuple, Union
 
-from PIL import Image
 import torch
 
 

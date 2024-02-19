@@ -297,6 +297,8 @@ multidict==6.0.5
     #   -c requirements/prod.txt
     #   aiohttp
     #   yarl
+natsort==8.4.0
+    # via -r requirements/dev.in
 nbclassic==1.0.0
     # via notebook
 nbclient==0.9.0
@@ -598,6 +600,8 @@ torch==2.1.2
     #   -c requirements/prod.txt
     #   pytorch-lightning
     #   torchmetrics
+torch-summary==1.4.5
+    # via -r requirements/dev.in
 torchmetrics==0.7.3
     # via
     #   -r requirements/dev.in

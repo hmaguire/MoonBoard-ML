@@ -3,12 +3,12 @@ import argparse
 
 import pytorch_lightning as pl
 import torch
-from torchmetrics import Accuracy
+from torchmetrics import MeanAbsoluteError, MeanSquaredError
 
 
 OPTIMIZER = "Adam"
 LR = 1e-3
-LOSS = "cross_entropy"
+LOSS = "mse_loss"
 ONE_CYCLE_TOTAL_STEPS = 100
 
 
@@ -22,25 +22,25 @@ class BaseLitModel(pl.LightningModule):
         self.model = model
         self.args = vars(args) if args is not None else {}
 
-        self.data_config = self.model.data_config
-        self.mapping = self.data_config["mapping"]
-        self.input_dims = self.data_config["input_dims"]
-
         optimizer = self.args.get("optimizer", OPTIMIZER)
         self.optimizer_class = getattr(torch.optim, optimizer)
 
         self.lr = self.args.get("lr", LR)
 
         loss = self.args.get("loss", LOSS)
-        if loss not in ("transformer",):
-            self.loss_fn = getattr(torch.nn.functional, loss)
+
+        self.loss_fn = getattr(torch.nn.functional, loss)
 
         self.one_cycle_max_lr = self.args.get("one_cycle_max_lr", None)
         self.one_cycle_total_steps = self.args.get("one_cycle_total_steps", ONE_CYCLE_TOTAL_STEPS)
 
-        self.train_acc = Accuracy()
-        self.val_acc = Accuracy()
-        self.test_acc = Accuracy()
+        self.train_mae = MeanAbsoluteError()
+        self.val_mae = MeanAbsoluteError()
+        self.test_mae = MeanAbsoluteError()
+
+        self.train_mse = MeanSquaredError()
+        self.val_mse = MeanSquaredError()
+        self.test_mse = MeanSquaredError()
 
     @staticmethod
     def add_to_argparse(parser):
@@ -64,50 +64,56 @@ class BaseLitModel(pl.LightningModule):
         return self.model(x)
 
     def predict(self, x):
-        logits = self.model(x)
-        return torch.argmax(logits, dim=1)
+        preds = self.model(x)
+        return torch.argmax(preds, dim=1)
 
     def training_step(self, batch, batch_idx):
-        x, y, logits, loss = self._run_on_batch(batch)
-        self.train_acc(logits, y)
+        x, y, preds, loss = self._run_on_batch(batch)
+        self.train_mae(preds, y)
+        self.train_mse(preds, y)
 
         self.log("train/loss", loss)
-        self.log("train/acc", self.train_acc, on_step=False, on_epoch=True)
+        self.log("train/mae", self.train_mae, on_step=False, on_epoch=True)
+        self.log("train/mse", self.train_mse, on_step=False, on_epoch=True)
 
         outputs = {"loss": loss}
         # Hide lines below until Lab 04
-        self.add_on_first_batch({"logits": logits.detach()}, outputs, batch_idx)
+        self.add_on_first_batch({"preds": preds.detach()}, outputs, batch_idx)
         # Hide lines above until Lab 04
 
         return outputs
 
     def _run_on_batch(self, batch, with_preds=False):
         x, y = batch
-        logits = self(x)
-        loss = self.loss_fn(logits, y)
+        preds = self(x)
+        loss = self.loss_fn(preds, y)
 
-        return x, y, logits, loss
+        return x, y, preds, loss
 
     def validation_step(self, batch, batch_idx):
-        x, y, logits, loss = self._run_on_batch(batch)
-        self.val_acc(logits, y)
+        x, y, preds, loss = self._run_on_batch(batch)
+        self.val_mae(preds, y)
+        self.val_mse(preds, y)
 
         self.log("validation/loss", loss, prog_bar=True, sync_dist=True)
-        self.log("validation/acc", self.val_acc, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("validation/mae", self.val_mae, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("validation/mse", self.val_mse, on_step=False, on_epoch=True, prog_bar=True)
 
         outputs = {"loss": loss}
         # Hide lines below until Lab 04
-        self.add_on_first_batch({"logits": logits.detach()}, outputs, batch_idx)
+        self.add_on_first_batch({"preds": preds.detach()}, outputs, batch_idx)
         # Hide lines above until Lab 04
 
         return outputs
 
     def test_step(self, batch, batch_idx):
-        x, y, logits, loss = self._run_on_batch(batch)
-        self.test_acc(logits, y)
+        x, y, preds, loss = self._run_on_batch(batch)
+        self.test_mae(preds, y)
+        self.test_mse(preds, y)
 
         self.log("test/loss", loss, on_step=False, on_epoch=True)
-        self.log("test/acc", self.test_acc, on_step=False, on_epoch=True)
+        self.log("test/mae", self.test_mae, on_step=False, on_epoch=True)
+        self.log("test/mse", self.test_mse, on_step=False, on_epoch=True)
 
     # Hide lines below until Lab 04
     def add_on_first_batch(self, metrics, outputs, batch_idx):

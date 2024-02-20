@@ -13,7 +13,7 @@ repos:
       - id: check-added-large-files  # check that no "large" files have been added
         args: ['--maxkb=10240']      #  where large means 10MB+, as in Hugging Face's git server
       - id: debug-statements         # check for python debug statements (import pdb, breakpoint, etc.)
-      - id: detect-private-key       # checks for private keys (BEGIN X PRIVATE KEY, etc.)
+      - id: detect-private-key       # checks for private .wandb (BEGIN X PRIVATE KEY, etc.)
 
   # black python autoformatting
   - repo: https://github.com/psf/black

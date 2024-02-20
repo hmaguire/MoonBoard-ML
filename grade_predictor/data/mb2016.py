@@ -3,13 +3,14 @@ import pickle
 from typing import Optional
 
 from grade_predictor.data.base_data_module import BaseDataModule, load_and_print_info
-from grade_predictor.data.util import BaseDataset
-import grade_predictor.metadata.transformer as metadata
+from grade_predictor.data.util import BaseDataset, split_dataset
+import grade_predictor.metadata.mb2016 as metadata
 from grade_predictor.util import temporary_working_directory
 import natsort
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import pytorch_lightning as pl
 from sklearn.preprocessing import LabelBinarizer
 import torch
 
@@ -44,14 +45,13 @@ class MB2016(BaseDataModule):
         self.data_dir = self.args.get("data_dir", metadata.DATA_DIRNAME)
         self.processed_data_dir = self.args.get("data_dir", metadata.PROCESSED_DATA_DIRNAME)
 
-        # self.transform = ClimbStem(self.with_start_mid_end_tokens)
-
         self.input_dims = (4, self.max_sequence)
         self.output_dims = (1,)
 
     def prepare_data(self) -> None:
 
         # check if data has already been prepared
+        self.processed_data_dir.mkdir(parents=True, exist_ok=True)
         if self.processed_data_filename.exists():
             return
 
@@ -65,7 +65,7 @@ class MB2016(BaseDataModule):
         sorted_grades = natsort.natsorted(data["grade"].unique())
         grade_to_float = {}
         for i, value in enumerate(sorted_grades):
-            grade_to_float[value] = np.float32(i)
+            grade_to_float[value] = np.array([np.float32(i)])
         data['numeric_grade'] = data['grade'].map(grade_to_float)
 
         # Clean dataset of extraneous climbs
@@ -102,18 +102,19 @@ class MB2016(BaseDataModule):
         x = data["tokens_and_positions_array"]
         y = data["numeric_grade"]
 
-        x_train, x_test, y_train, y_test = train_test_split(
+        x_trainval, x_test, y_trainval, y_test = train_test_split(
             x, y, test_size=self.test_size, stratify=data["grade"], random_state=self.random_state
         )
 
         # Reset indexes to allow dataloader to iterate correctly
-        x_train.reset_index(drop=True, inplace=True)
+        x_trainval.reset_index(drop=True, inplace=True)
         x_test.reset_index(drop=True, inplace=True)
-        y_train.reset_index(drop=True, inplace=True)
+        y_trainval.reset_index(drop=True, inplace=True)
         y_test.reset_index(drop=True, inplace=True)
 
-        if stage == "train" or stage is None:
-            self.data_train = BaseDataset(x_train, y_train)
+        if stage == "fit" or stage is None:
+            data_trainval = BaseDataset(x_trainval, y_trainval)
+            self.data_train, self.data_val = split_dataset(base_dataset=data_trainval, fraction=0.8, seed=42)
 
         if stage == "test" or stage is None:
             self.data_test = BaseDataset(x_test, y_test)

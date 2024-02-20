@@ -1,7 +1,7 @@
 # Data
 data/downloaded
-data/processed
 data/interim
+!data/processed/
 
 
 # Editors
@@ -41,7 +41,7 @@ var/
 *.egg
 
 # logging
-wandb
+.wandb
 *.pt
 *.ckpt
 lightning_logs/
@@ -62,3 +62,4 @@ requirements/dev-lint.txt
 bootstrap.py
 **/fixme.py
 .server.env
+.wandb/

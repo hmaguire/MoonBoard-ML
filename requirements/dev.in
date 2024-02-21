@@ -32,3 +32,4 @@ importlib-metadata==4.8.3
 flake8-for-pycharm
 natsort
 torch-summary
+positional-encodings[pytorch]

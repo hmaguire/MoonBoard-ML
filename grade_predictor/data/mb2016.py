@@ -39,6 +39,7 @@ class MB2016(BaseDataModule):
             self.max_start_holds + self.max_mid_holds + self.max_end_holds + (4 if self.with_start_mid_end_tokens else 0)
         )
         self.token_dict = self._create_hold_dictionary(self.with_start_mid_end_tokens)
+        self.token_dict_size = len(self.token_dict) + 1     # embedding indexing falls out of range otherwise
         self.test_size = self.args.get("test_size", 0.2)
         self.random_state = self.args.get("random_state", 42)
 

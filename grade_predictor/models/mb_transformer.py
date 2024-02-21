@@ -1,64 +1,75 @@
 import argparse
-from typing import Any, Dict
-from typing import Tuple
-import pytorch_lightning as pl
-import torch
-import logging  # import some stdlib components to control what's display
-import textwrap
-import traceback
-from grade_predictor.lit_models.base import BaseLitModel
+import logging
 import numpy as np
-
-FC1_DIM = 1024
-FC2_DIM = 128
-FC_DROPOUT = 0.5
+import torch
+import torch.nn as nn
+import pytorch_lightning as pl
+from positional_encodings.torch_encodings import PositionalEncoding1D, PositionalEncoding2D, PositionalEncoding3D, Summer
 
 
 class MB2016Transformer(pl.LightningModule):
-    """MB Transformer"""
+    """MB Transformer with cleaner structure and improved readability."""
 
-    def __init__(self, data_config: Dict[str, Any], args: argparse.Namespace = None):
-        super().__init__()  # just like in torch.nn.Module, we need to call the parent class __init__
-        self.args = vars(args) if args is not None else {}
+    EMBEDDING_SIZE = 32
+    TF_NHEADS = 2
+    TF_LAYERS = 2
+    TF_DROPOUT = 0.2
+    TF_FF_SIZE = 128
+
+    def __init__(self, data_config: dict, args: argparse.Namespace = None):
+        super().__init__()
         self.data_config = data_config
-        input_dim = np.prod(self.data_config["input_dims"])
 
-        self.loss_fn = torch.nn.MSELoss()
-        fc1_dim = self.args.get("fc1", FC1_DIM)
-        fc2_dim = self.args.get("fc2", FC2_DIM)
-        dropout_p = self.args.get("fc_dropout", FC_DROPOUT)
+        self.input_dim = int(np.prod(self.data_config["input_dims"]))
+        self.output_dim = int(np.prod(self.data_config["output_dims"]))
+        self.token_dict_size = self.data_config["token_dict_size"]
+        self.max_sequence = self.data_config["max_sequence"]
 
-        # attach torch.nn.Modules as top level attributes during init, just like in a torch.nn.Module
-        n, d_model = 199, 50
-        nhead, nlayers = 2, 3
-        self.embedding = torch.nn.Embedding(n, d_model, max_norm=True)
-        encoder_layers = torch.nn.TransformerEncoderLayer(d_model, nhead, batch_first=True)
-        self.transformer_encoder = torch.nn.TransformerEncoder(encoder_layers, nlayers)
-        # self.position_embedding = torch.nn.Embedding(n, d, max_norm=True)
-        self.linear = torch.nn.Linear(in_features=d_model, out_features=1)
-        self.flatten = torch.nn.Flatten()
-        self.linear2 = torch.nn.Linear(in_features=15, out_features=1)
-        # we like to define the entire model as one torch.nn.Module -- typically in a separate class
+        self.embedding_size = self.EMBEDDING_SIZE
+        self.tf_nheads = self.TF_NHEADS
+        self.tf_nlayers = self.TF_LAYERS
+        self.tf_dropout = self.TF_DROPOUT
+        self.tf_ff_size = self.TF_FF_SIZE
+        self.tf_max_len = self.max_sequence
 
-    # optionally, define a forward method
+        self.loss_fn = nn.MSELoss()
+
+        self.embedding = nn.Embedding(self.token_dict_size, self.embedding_size, max_norm=True)
+        self.pos_embedding = nn.Embedding(4, self.embedding_size, max_norm=True)
+
+        # self.pos_encoder_order = PositionalEncoding1D(self.embedding_size)
+        #
+        # position_dim = 3
+        # w_dim = 11
+        # h_dim = 19
+        # pe_blank = torch.zeros(1, position_dim, w_dim, h_dim, self.embedding_size)
+        # self.pos_encoder_3d = Summer(PositionalEncoding3D(self.embedding_size))(pe_blank)
+
+        encoder_layer = nn.TransformerEncoderLayer(d_model=self.embedding_size, nhead=self.tf_nheads,
+                                                   dropout=self.tf_dropout, dim_feedforward=self.tf_ff_size,
+                                                   batch_first=True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, self.tf_nlayers)
+        self.fc1 = nn.Linear(self.embedding_size*self.tf_max_len, 10)
+        self.fc2 = nn.Linear(10, self.output_dim)
+
     def forward(self, xs):
-        # xs = xs[0]
-        # print(xs.size())
-        # display(xs)
-        # print(xs.type())
-        xs = xs[:, 0]
-        xs = self.embedding(xs)
-        xs = self.transformer_encoder(xs)  # we like to just call the model's forward method
-        xs = self.linear(xs)
-        xs = self.flatten(xs)
-        xs = self.linear2(xs)
+
+        xs = self.embedding(xs[:, 0]) + self.pos_embedding(xs[:, 1])
+        xs = self.transformer_encoder(xs)
+        xs = xs.reshape(-1, self.embedding_size*self.tf_max_len)
+        xs = torch.tanh(self.fc1(xs))
+        xs = self.fc2(xs)
         return xs
 
+
+    # pe_blank = torch.zeros(128, position_dim, w_dim, h_dim, self.embedding_size)
+    # (self.pos_encoder_3d, torch.full(position_indices.shape[0]1,-1), position_indices)
+    # torch.vmap(torch.index_select)(self.pos_encoder_3d, torch.full((position_indices.shape[0],0),-1), position_indices)
     @staticmethod
     def add_to_argparse(parser):
-        parser.add_argument("--fc1", type=int, default=FC1_DIM)
-        parser.add_argument("--fc2", type=int, default=FC2_DIM)
-        parser.add_argument("--fc_dropout", type=float, default=FC_DROPOUT)
+        # parser.add_argument("--fc1", type=int, default=MB2016Transformer.DEFAULT_FC1_DIM)
+        # parser.add_argument("--fc2", type=int, default=MB2016Transformer.DEFAULT_FC2_DIM)
+        # parser.add_argument("--fc_dropout", type=float, default=MB2016Transformer.DEFAULT_FC_DROPOUT)
         return parser
 
     # def training_step(self, batch, batch_idx):
@@ -87,3 +98,11 @@ class MB2016Transformer(pl.LightningModule):
     #     preds = self(xs)  # apply the model
     #     loss = torch.nn.functional.mse_loss(preds, ys)  # compute the (squared error) loss
     #     return loss
+
+    def select_positional_encodings(self, indices):
+        pe_full = self.pos_encoder_3d
+        p_indices, w_indices, h_indices = indices
+        pe_sequence = torch.zeros((1,self.max_sequence,128))
+        for i in range(self.max_sequence):
+            pe_sequence[1,i] = pe_full[0,p_indices[i], w_indices[i], h_indices[i]]
+        return pe_sequence

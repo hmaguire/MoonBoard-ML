@@ -344,6 +344,7 @@ numpy==1.26.4
     #   itermplot
     #   matplotlib
     #   pandas
+    #   positional-encodings
     #   pytorch-lightning
     #   scikit-learn
     #   scipy
@@ -390,6 +391,8 @@ platformdirs==4.2.0
     #   virtualenv
 pluggy==1.4.0
     # via pytest
+positional-encodings[pytorch]==6.0.3
+    # via -r requirements/dev.in
 pre-commit==3.6.0
     # via -r requirements/dev.in
 prometheus-client==0.19.0
@@ -598,6 +601,7 @@ tomlkit==0.12.3
 torch==2.1.2
     # via
     #   -c requirements/prod.txt
+    #   positional-encodings
     #   pytorch-lightning
     #   torchmetrics
 torch-summary==1.4.5

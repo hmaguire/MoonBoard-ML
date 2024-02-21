@@ -50,6 +50,8 @@ class BaseDataModule(pl.LightningDataModule):
         # Make sure to set the variables below in subclasses
         self.input_dims: Tuple[int, ...]
         self.output_dims: Tuple[int, ...]
+        self.max_sequence: int
+        self.token_dict_size: int
         self.data_train: Union[BaseDataset, ConcatDataset]
         self.data_val: Union[BaseDataset, ConcatDataset]
         self.data_test: Union[BaseDataset, ConcatDataset]
@@ -76,7 +78,8 @@ class BaseDataModule(pl.LightningDataModule):
 
     def config(self):
         """Return important settings of the dataset, which will be passed to instantiate models."""
-        return {"input_dims": self.input_dims, "output_dims": self.output_dims}
+        return {"input_dims": self.input_dims, "output_dims": self.output_dims,
+                "token_dict_size": self.token_dict_size, "max_sequence": self.max_sequence}
 
     def prepare_data(self, *args, **kwargs) -> None:
         """Take the first steps to prepare data for use.

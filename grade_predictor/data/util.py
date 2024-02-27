@@ -1,6 +1,6 @@
 """Base Dataset class."""
 
-from typing import Any, Callable, Dict, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Sequence, Tuple, Union, TypedDict
 
 import torch
 
@@ -27,24 +27,34 @@ class BaseDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        data: SequenceOrTensor,
+        data: TypedDict,
         targets: SequenceOrTensor,
         transform: Callable = None,
         target_transform: Callable = None,
     ) -> None:
-        if len(data) != len(targets):
+        xs: SequenceOrTensor
+        indexes: SequenceOrTensor
+        orders: SequenceOrTensor
+        relative_xs: SequenceOrTensor
+        relative_ys: SequenceOrTensor
+
+        if len(data["id_tokens"]) != len(targets):
             raise ValueError("Data and targets must be of equal length")
         super().__init__()
-        self.data = data
+        self.xs = data["id_tokens"]
+        self.idxs = data["index"]
+        self.order_tokens = data["order_tokens"]
+        self.rel_x_tokens = data["rel_x_tokens"]
+        self.rel_y_tokens = data["rel_y_tokens"]
         self.targets = targets
         self.transform = transform
         self.target_transform = target_transform
 
     def __len__(self) -> int:
         """Return length of the dataset."""
-        return len(self.data)
+        return len(self.xs)
 
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+    def __getitem__(self, index: int) -> Dict:
         """
         Return a datum and its target, after processing by transforms.
 
@@ -56,15 +66,28 @@ class BaseDataset(torch.utils.data.Dataset):
         -------
         (datum, target)
         """
-        datum, target = self.data[index], self.targets[index]
+        xs, target = self.xs[index], self.targets[index]
+
 
         if self.transform is not None:
-            datum = self.transform(datum)
+            xs = self.transform(xs)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return datum, target
+        tokens = {
+            'xs': xs,
+            'order': self.order_tokens[index],
+            'rel_x_tokens': self.rel_x_tokens[index],
+            'rel_y_tokens': self.rel_y_tokens[index]
+        }
+
+        sample = {
+            'data': tokens,
+            'target': target,
+            'id': self.idxs[index]
+        }
+        return sample
 
 
 def convert_strings_to_labels(strings: Sequence[str], mapping: Dict[str, int], length: int) -> torch.Tensor:

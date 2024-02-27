@@ -4,13 +4,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
+from einops import rearrange
 from positional_encodings.torch_encodings import PositionalEncoding1D, PositionalEncoding2D, PositionalEncoding3D, Summer
 
 
 class MB2016Transformer(pl.LightningModule):
     """MB Transformer with cleaner structure and improved readability."""
 
-    EMBEDDING_SIZE = 32
+    EMBEDDING_SIZE = 128     # Must be even number
     TF_NHEADS = 2
     TF_LAYERS = 2
     TF_DROPOUT = 0.2
@@ -36,7 +37,8 @@ class MB2016Transformer(pl.LightningModule):
 
         self.embedding = nn.Embedding(self.token_dict_size, self.embedding_size, max_norm=True)
         self.pos_embedding = nn.Embedding(4, self.embedding_size, max_norm=True)
-
+        self.rel_x_embedding = nn.Embedding(22, self.embedding_size // 2, max_norm=True)
+        self.rel_y_embedding = nn.Embedding(36, self.embedding_size // 2, max_norm=True)
         # self.pos_encoder_order = PositionalEncoding1D(self.embedding_size)
         #
         # position_dim = 3
@@ -52,9 +54,15 @@ class MB2016Transformer(pl.LightningModule):
         self.fc1 = nn.Linear(self.embedding_size*self.tf_max_len, 10)
         self.fc2 = nn.Linear(10, self.output_dim)
 
-    def forward(self, xs):
-
-        xs = self.embedding(xs[:, 0]) + self.pos_embedding(xs[:, 1])
+    def forward(self, data):
+        xs = data['xs']
+        order = data['order']
+        rel_x_tokens = data['rel_x_tokens']
+        rel_y_tokens = data['rel_y_tokens']
+        rel_x = self.rel_x_embedding(rel_x_tokens)
+        rel_y = self.rel_y_embedding(rel_y_tokens)
+        re_xy = torch.concat([rel_x, rel_y], -1)
+        xs = torch.einsum('b t d, b t t d -> b t d', self.embedding(xs), re_xy) + self.pos_embedding(order)
         xs = self.transformer_encoder(xs)
         xs = xs.reshape(-1, self.embedding_size*self.tf_max_len)
         xs = torch.tanh(self.fc1(xs))
@@ -99,10 +107,41 @@ class MB2016Transformer(pl.LightningModule):
     #     loss = torch.nn.functional.mse_loss(preds, ys)  # compute the (squared error) loss
     #     return loss
 
-    def select_positional_encodings(self, indices):
-        pe_full = self.pos_encoder_3d
-        p_indices, w_indices, h_indices = indices
-        pe_sequence = torch.zeros((1,self.max_sequence,128))
-        for i in range(self.max_sequence):
-            pe_sequence[1,i] = pe_full[0,p_indices[i], w_indices[i], h_indices[i]]
-        return pe_sequence
+    def relative_to_absolute(self, q, x):
+        """
+        Converts the dimension that is specified from the axis
+        from relative distances (with length 2*tokens-1) to absolute distance (length tokens)
+          Input: [bs, heads, length, 2*length - 1]
+          Output: [bs, heads, length, length]
+        """
+        b, l, device, dtype = *q.shape, q.device, q.dtype
+        dd = {'device': device, 'dtype': dtype}
+        col_pad = torch.zeros((b, l, 1), **dd)
+        x = torch.cat((q, col_pad), dim=2)  # zero pad 2l-1 to 2l
+        flat_x = rearrange(x, 'b l c -> b (l c)')
+        flat_pad = torch.zeros((b, l - 1), **dd)
+        flat_x_padded = torch.cat((flat_x, flat_pad), dim=2)
+        final_x = flat_x_padded.reshape(b, l + 1, 2 * l - 1)
+        final_x = final_x[:, :, :l, (l - 1):]
+        return final_x
+
+
+# from grade_predictor.data import MB2016
+# from grade_predictor.data import base_data_module
+# from grade_predictor.metadata import mb2016 as data_config
+# if __name__ == "__main__":
+#     base_dataset = base_data_moduleBaseDataModule()
+#     dataset = MB2016()
+#     dataset.prepare_data()
+#     dataset.setup()
+#     train_dataloader = dataset.train_dataloader()
+#     val_dataloader = dataset.val_dataloader()
+#     model = MB2016Transformer({
+#         "input_dims": dataset.input_dims,
+#         "output_dims": dataset.output_dims,
+#         "token_dict_size": dataset.id_token_dict_size,
+#         "max_sequence": dataset.max_sequence
+#     })
+#     trainer = pl.Trainer(fast_dev_run=True, accelerator="cpu")
+#
+#     trainer.fit(model, train_dataloader, val_dataloader)

@@ -38,8 +38,14 @@ class MB2016(BaseDataModule):
         self.max_sequence = (
             self.max_start_holds + self.max_mid_holds + self.max_end_holds + (4 if self.with_start_mid_end_tokens else 0)
         )
-        self.token_dict = self._create_hold_dictionary(self.with_start_mid_end_tokens)
-        self.token_dict_size = len(self.token_dict) + 1     # embedding indexing falls out of range otherwise
+        self.id_token_dict = self._id_token_dict(self.with_start_mid_end_tokens)
+        self.rel_x_token_dict = self._rel_token_dict(11)
+        self.rel_y_token_dict = self._rel_token_dict(18)
+
+        self.id_token_dict_size = len(self.id_token_dict) + 1     # embedding indexing falls out of range otherwise
+
+
+
         self.test_size = self.args.get("test_size", 0.2)
         self.random_state = self.args.get("random_state", 42)
 
@@ -61,13 +67,14 @@ class MB2016(BaseDataModule):
             with open(self.raw_data_filename, "rb") as pkl_file:
                 pickle_data = pickle.load(pkl_file)
                 data = pd.DataFrame.from_dict(pickle_data).T
+                data.reset_index(inplace=True)
 
         # map grades to integers
         sorted_grades = natsort.natsorted(data["grade"].unique())
         grade_to_float = {}
         for i, value in enumerate(sorted_grades):
             grade_to_float[value] = np.array([np.float32(i)])
-        data['numeric_grade'] = data['grade'].map(grade_to_float)
+        data["numeric_grade"] = data["grade"].map(grade_to_float)
 
         # Clean dataset of extraneous climbs
         data = data[data["repeats"] >= self.min_repeats]
@@ -76,17 +83,15 @@ class MB2016(BaseDataModule):
         data = data[data.start.map(len) <= self.max_start_holds]
         data = data[data.end.map(len) <= self.max_end_holds]
 
-        # self.grade_count = cleaned_data["grade"].value_counts()
-        # self.grades = [key for key, value in self.grade_count.items() if value >= self.min_grade_count]
-        # cleaned_data = cleaned_data[cleaned_data["grade"].isin(self.grades)]
+        self.grade_count = data["grade"].value_counts()
+        self.grades = [key for key, value in self.grade_count.items() if value >= self.min_grade_count]
+        data = data[data["grade"].isin(self.grades)]
 
         # Use index for IDs and reset_index
-        data.reset_index(inplace=True)
+        data.reset_index(drop=True,inplace=True)
 
-        # Tokenize hold positions
-        data["tokens_and_positions_array"] = self._dataframe_to_np_token_array(data,
-                                                                                   self.max_sequence,
-                                                                                   self.token_dict)
+        # Tokenize
+        data = pd.concat([data, self._extract_from_df(data)], axis=1)
 
         # Save cleaned data
         with temporary_working_directory(self.processed_data_dir):
@@ -100,11 +105,10 @@ class MB2016(BaseDataModule):
                 data = pd.DataFrame.from_dict(pickle_data)
 
         # test / train split, keep % of grades equal in train and test.
-        x = data["tokens_and_positions_array"]
-        y = data["numeric_grade"]
-
         x_trainval, x_test, y_trainval, y_test = train_test_split(
-            x, y, test_size=self.test_size, stratify=data["grade"], random_state=self.random_state
+            data, data["numeric_grade"],
+            test_size=self.test_size, stratify=data["grade"],
+            random_state=self.random_state
         )
 
         # Reset indexes to allow dataloader to iterate correctly
@@ -148,7 +152,7 @@ class MB2016(BaseDataModule):
     def raw_data_filename(self):
         return metadata.RAW_DATA_DIRNAME / metadata.RAW_DATA_FILENAME
 
-    def _create_hold_dictionary(self, position_tokens: bool):
+    def _id_token_dict(self, position_tokens: bool):
         # Create token dictionary for MoonBoard hold positions
         rows = range(0, 11)
         columns = range(0, 18)
@@ -161,21 +165,45 @@ class MB2016(BaseDataModule):
 
         return token_dict
 
-    def _dataframe_to_np_token_array(self, df, max_sequence, token_dict):
-        def _row_to_token_matrix(row):
-            token_matrix = np.zeros((4, max_sequence), dtype=np.int32())
-            i = 0
-            for position_column, position_index in [(row["start"], 1), (row["mid"], 2), (row["end"], 3)]:
-                for item in position_column:
-                    token_matrix[0][i] = token_dict[tuple(item)]
-                    token_matrix[1][i] = position_index
-                    token_matrix[2][i] = tuple(item)[0]
-                    token_matrix[3][i] = tuple(item)[1]
-                    i += 1
-            return token_matrix
+    def _rel_token_dict(self, dim: int):
+        # from tokens from min and max diffences of the relative hold positions
+        return dict(zip(range(-dim + 1, dim), range(1, 2*dim)))
 
-        token_array = df.apply(lambda x: _row_to_token_matrix(x), axis=1)
-        return token_array
+
+    def _extract_from_df(self, df):
+        def _row_to_arrays(row):
+
+            sequence_len = len(row["start"]) + len(row["mid"]) + len(row["end"])
+            id_token_array = torch.zeros(self.max_sequence, dtype=torch.int32)  # Padding for token array
+            order_token_array = torch.zeros(self.max_sequence, dtype=torch.int32)
+            rel_x_token_array = torch.zeros((self.max_sequence, self.max_sequence), dtype=torch.int32)
+            rel_y_token_array = torch.zeros((self.max_sequence, self.max_sequence), dtype=torch.int32)
+
+            abs_xs = np.zeros(self.max_sequence, dtype=np.int32)
+            abs_ys = np.zeros(self.max_sequence, dtype=np.int32)
+            # relative_x_array = np.zeros((max_sequence, 2 * max_sequence -1), dtype=np.int32())
+            # relative_y_array = np.zeros((max_sequence, 2 * max_sequence -1), dtype=np.int32())
+
+            index = 0
+            for xys, order_token in [(row["start"], 1), (row["mid"], 2), (row["end"], 3)]:
+                for xy in xys:
+                    id_token_array[index] = self.id_token_dict[tuple(xy)]
+                    order_token_array[index] = order_token
+                    abs_xs[index] = tuple(xy)[0]
+                    abs_ys[index] = tuple(xy)[1]
+                    index += 1
+
+            for i in range(sequence_len):
+                for j in range(sequence_len):
+                    rel_x_token_array[i][j] = self.rel_x_token_dict[abs_xs[j] - abs_xs[i]]
+                    rel_y_token_array[i][j] = self.rel_y_token_dict[abs_ys[j] - abs_ys[i]]
+
+
+            return id_token_array, order_token_array, rel_x_token_array, rel_y_token_array
+
+        output = df.apply(lambda x: _row_to_arrays(x), axis=1, result_type="expand")
+        output.columns = ["id_tokens", "order_tokens", "rel_x_tokens", "rel_y_tokens"]
+        return output
 
 
 # def _grade_labels_to_one_hot_tensor(df_labels):

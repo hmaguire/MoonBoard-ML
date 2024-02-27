@@ -79,7 +79,7 @@ class BaseDataModule(pl.LightningDataModule):
     def config(self):
         """Return important settings of the dataset, which will be passed to instantiate models."""
         return {"input_dims": self.input_dims, "output_dims": self.output_dims,
-                "token_dict_size": self.token_dict_size, "max_sequence": self.max_sequence}
+                "token_dict_size": self.id_token_dict_size, "max_sequence": self.max_sequence}
 
     def prepare_data(self, *args, **kwargs) -> None:
         """Take the first steps to prepare data for use.

@@ -84,7 +84,9 @@ class BaseLitModel(pl.LightningModule):
         return outputs
 
     def _run_on_batch(self, batch, with_preds=False):
-        x, y = batch
+        x = batch["data"]
+        y = batch["target"]
+        id = batch["id"]
         preds = self(x)
         loss = self.loss_fn(preds, y)
 

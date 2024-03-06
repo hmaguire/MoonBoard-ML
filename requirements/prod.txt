@@ -62,6 +62,8 @@ cycler==0.12.1
     # via matplotlib
 dateparser==1.2.0
     # via gantry
+einops==0.7.0
+    # via -r requirements/prod.in
 exceptiongroup==1.2.0
     # via anyio
 fastapi==0.109.2
@@ -169,6 +171,8 @@ multidict==6.0.5
     # via
     #   aiohttp
     #   yarl
+natsort==8.4.0
+    # via -r requirements/prod.in
 networkx==3.2.1
     # via torch
 numpy==1.26.4
@@ -181,6 +185,7 @@ numpy==1.26.4
     #   h5py
     #   matplotlib
     #   pandas
+    #   positional-encodings
     #   scikit-learn
     #   scipy
     #   torchvision
@@ -206,6 +211,8 @@ pillow==9.4.0
     #   gradio
     #   matplotlib
     #   torchvision
+positional-encodings[pytorch]==6.0.3
+    # via -r requirements/prod.in
 pydantic==2.6.1
     # via
     #   fastapi
@@ -290,7 +297,10 @@ toolz==0.12.1
 torch==2.1.2
     # via
     #   -r requirements/prod.in
+    #   positional-encodings
     #   torchvision
+torch-summary==1.4.5
+    # via -r requirements/prod.in
 torchvision==0.16.2
     # via -r requirements/prod.in
 tqdm==4.66.1

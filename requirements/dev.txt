@@ -102,8 +102,6 @@ distlib==0.3.8
     # via virtualenv
 docker-pycreds==0.4.0
     # via wandb
-einops==0.7.0
-    # via -r requirements/dev.in
 entrypoints==0.4
     # via
     #   jupyter-client
@@ -209,7 +207,6 @@ joblib==1.3.2
     # via
     #   -c requirements/prod.txt
     #   nltk
-    #   scikit-learn
 jsonpointer==2.4
     # via jsonschema
 jsonschema[format-nongpl]==4.21.1
@@ -297,8 +294,6 @@ multidict==6.0.5
     #   -c requirements/prod.txt
     #   aiohttp
     #   yarl
-natsort==8.4.0
-    # via -r requirements/dev.in
 nbclassic==1.0.0
     # via notebook
 nbclient==0.9.0
@@ -344,9 +339,7 @@ numpy==1.26.4
     #   itermplot
     #   matplotlib
     #   pandas
-    #   positional-encodings
     #   pytorch-lightning
-    #   scikit-learn
     #   scipy
     #   seaborn
     #   tensorboard
@@ -370,7 +363,6 @@ packaging==23.2
 pandas==2.2.0
     # via
     #   -c requirements/prod.txt
-    #   -r requirements/dev.in
     #   seaborn
 pandocfilters==1.5.1
     # via nbconvert
@@ -391,8 +383,6 @@ platformdirs==4.2.0
     #   virtualenv
 pluggy==1.4.0
     # via pytest
-positional-encodings[pytorch]==6.0.3
-    # via -r requirements/dev.in
 pre-commit==3.6.0
     # via -r requirements/dev.in
 prometheus-client==0.19.0
@@ -525,15 +515,10 @@ rpds-py==0.17.1
     #   referencing
 rsa==4.9
     # via google-auth
-scikit-learn==1.4.0
-    # via
-    #   -c requirements/prod.txt
-    #   -r requirements/dev.in
 scipy==1.12.0
     # via
     #   -c requirements/prod.txt
     #   -r requirements/dev.in
-    #   scikit-learn
 seaborn==0.13.2
     # via -r requirements/dev.in
 send2trash==1.8.2
@@ -583,10 +568,6 @@ terminado==0.18.0
     #   jupyter-server-terminals
     #   nbclassic
     #   notebook
-threadpoolctl==3.2.0
-    # via
-    #   -c requirements/prod.txt
-    #   scikit-learn
 tinycss2==1.2.1
     # via nbconvert
 toml==0.10.2
@@ -601,11 +582,8 @@ tomlkit==0.12.3
 torch==2.1.2
     # via
     #   -c requirements/prod.txt
-    #   positional-encodings
     #   pytorch-lightning
     #   torchmetrics
-torch-summary==1.4.5
-    # via -r requirements/dev.in
 torchmetrics==0.7.3
     # via
     #   -r requirements/dev.in

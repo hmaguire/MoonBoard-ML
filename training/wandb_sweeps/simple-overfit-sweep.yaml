@@ -1,0 +1,46 @@
+%%writefile training/simple-overfit-sweep.yaml
+# first we specify what we're sweeping
+# we specify a program to run
+program: training/run_experiment.py
+# we optionally specify how to run it, including setting default arguments
+command:
+    - ${env}
+    - ${interpreter}
+    - ${program}
+    - "--wandb"
+    - "--overfit_batches"
+    - "1"
+    - "--log_every_n_steps"
+    - "25"
+    - "--max_epochs"
+    - "100"
+    - "--limit_test_batches"
+    - "0"
+    - ${args}  # these arguments come from the sweep parameters below
+
+# and we specify which parameters to sweep over, what we're optimizing, and how we want to optimize it
+method: random  # generally, random searches perform well, can also be "grid" or "bayes"
+metric:
+    name: train/loss
+    goal: minimize
+parameters:
+    # Transformer hyperparameters
+    model_complexity:
+        values: [["basic"], ["order_pos"], ["order_pos", "spacial_pos"], ["spacial_pos"]]
+    tf_layers:
+        values: [1, 2, 4, 8]
+    embedding_size:
+        values: [32, 128, 512]
+    tf_ff_size:
+        values: [ 128, 512, 2048]
+    tf_nheads:
+        values: [ 2, 4]
+    fc2_size:
+        values: [10, 20, 50]
+    # we can also fix some values, just like we set default arguments
+    gpus:
+        value: 1
+    model_class:
+        value: MB2016Transformer
+    data_class:
+        value: MB2016

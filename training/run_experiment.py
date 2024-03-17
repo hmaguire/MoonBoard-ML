@@ -82,8 +82,8 @@ def _setup_parser():
     model_group = parser.add_argument_group("Model Args")
     model_class.add_to_argparse(model_group)
 
-    # lit_model_group = parser.add_argument_group("LitModel Args")
-    # lit_models.BaseLitModel.add_to_argparse(lit_model_group)
+    lit_model_group = parser.add_argument_group("LitModel Args")
+    lit_models.BaseLitModel.add_to_argparse(lit_model_group)
 
     parser.add_argument("--help", "-h", action="help")
     return parser

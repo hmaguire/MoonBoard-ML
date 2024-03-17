@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import pytorch_lightning as pl
 from sklearn.preprocessing import LabelBinarizer
+from sklearn import preprocessing
 import torch
 
 
@@ -44,7 +45,7 @@ class MB2016(BaseDataModule):
 
         self.id_token_dict_size = len(self.id_token_dict) + 1     # embedding indexing falls out of range otherwise
 
-
+        self.target_transform = preprocessing.MinMaxScaler()
 
         self.test_size = self.args.get("test_size", 0.2)
         self.random_state = self.args.get("random_state", 42)
@@ -104,6 +105,9 @@ class MB2016(BaseDataModule):
                 pickle_data = pickle.load(pkl_file)
                 data = pd.DataFrame.from_dict(pickle_data)
 
+        # MinMaxScaler for target grade: Speeds up training
+        self.target_transform.fit_transform(data["numeric_grade"].to_numpy().reshape(-1, 1))
+
         # test / train split, keep % of grades equal in train and test.
         x_trainval, x_test, y_trainval, y_test = train_test_split(
             data, data["numeric_grade"],
@@ -117,12 +121,13 @@ class MB2016(BaseDataModule):
         y_trainval.reset_index(drop=True, inplace=True)
         y_test.reset_index(drop=True, inplace=True)
 
+
         if stage == "fit" or stage is None:
-            data_trainval = BaseDataset(x_trainval, y_trainval)
+            data_trainval = BaseDataset(x_trainval, y_trainval, target_transform=self.target_transform.transform)
             self.data_train, self.data_val = split_dataset(base_dataset=data_trainval, fraction=0.8, seed=42)
 
         if stage == "test" or stage is None:
-            self.data_test = BaseDataset(x_test, y_test)
+            self.data_test = BaseDataset(x_test, y_test, target_transform=self.target_transform.transform)
 
     def __repr__(self):
         basic = "MB2016 Dataset"

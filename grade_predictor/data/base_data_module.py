@@ -42,8 +42,8 @@ class BaseDataModule(LightningDataModule):
 
     def __init__(self,
                  batch_size: int = 128,
-                 # num_workers: int = DEFAULT_NUM_WORKERS,
-                 num_workers: int = 0,
+                 num_workers: int = DEFAULT_NUM_WORKERS,
+                 # num_workers: int = 0,
                  args: argparse.Namespace = None) -> None:
         super().__init__()
         self.args = vars(args) if args is not None else {}

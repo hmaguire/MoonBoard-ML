@@ -1,44 +1,60 @@
 import argparse
+from typing import Dict
 import logging
 import numpy as np
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
+import lightning as L
 from einops import rearrange
 from positional_encodings.torch_encodings import PositionalEncoding1D, PositionalEncoding2D, PositionalEncoding3D, Summer
 
-EMBEDDING_SIZE = 128  # Must be even number
-TF_NHEADS = 2
-TF_LAYERS = 2
-TF_DROPOUT = 0.2
-TF_FF_SIZE = 128
-TF_FC2_SIZE = 10
-MODEL_COMPLEXITY = ["order_pos"]
 
+class MB2016Transformer(L.LightningModule):
 
-class MB2016Transformer(pl.LightningModule):
-    """MB Transformer with cleaner structure and improved readability."""
+    """MB Transformer model.
+        :parameter
+            data_config: Dict[str, int]
+            embedding_size: int, default: 128
+            tf_nheads: int, default: 2
+            tf_ff_size: int, default: 128
+            tf_nlayers: int, default: 2
+            tf_dropout: float, default: 0.2
+            fc2_size: int, default: 10
+            output_dim: int, default: 1
+            model_complexity: List[str], default: ["order_pos"]
+    """
 
+    def __init__(
+            self,
+            data_config,
+            embedding_size: int = 128,
+            tf_nheads: int = 2,
+            tf_ff_size: int = 128,
+            tf_nlayers: int = 2,
+            tf_dropout: float = 0.2,
+            fc2_size: int = 10,
+            output_dim: int = 1,
+            model_complexity=None
+    ) -> None:
 
-
-    def __init__(self, data_config: dict, args: argparse.Namespace = None):
         super().__init__()
+        if model_complexity is None:
+            model_complexity = ["order_pos"]
         self.data_config = data_config
-        self.args = vars(args) if args is not None else {}
 
-        self.input_dim = int(np.prod(data_config["input_dims"]))
-        self.output_dim = int(np.prod(data_config["output_dims"]))
+        self.output_dim = output_dim
         self.token_dict_size = data_config["token_dict_size"]
         self.max_sequence = data_config["max_sequence"]
 
-        self.model_complexity = self.args.get("model_complexity", MODEL_COMPLEXITY)
+        self.model_complexity = model_complexity
 
-        self.embedding_size = self.args.get("embedding_size", EMBEDDING_SIZE)
-        self.tf_nheads = self.args.get("tf_nheads", TF_NHEADS)
-        self.tf_nlayers = self.args.get("tf_nlayers", TF_LAYERS)
-        self.tf_dropout = self.args.get("tf_dropout", TF_DROPOUT)
-        self.tf_ff_size = self.args.get("tf_ff_size", TF_FF_SIZE)
-        self.fc2_size = self.args.get("fc2_size", TF_FC2_SIZE)
+        self.embedding_size = embedding_size
+        self.tf_nheads = tf_nheads
+        self.tf_nlayers = tf_nlayers
+        self.tf_ff_size = tf_ff_size
+        self.tf_dropout = tf_dropout
+
+        self.fc2_size = fc2_size
         self.tf_max_len = self.max_sequence
 
         # self.loss_fn = nn.MSELoss()
@@ -57,10 +73,10 @@ class MB2016Transformer(pl.LightningModule):
         # pe_blank = torch.zeros(1, position_dim, w_dim, h_dim, self.embedding_size)
         # self.pos_encoder_3d = Summer(PositionalEncoding3D(self.embedding_size))(pe_blank)
 
-        encoder_layer = nn.TransformerEncoderLayer(d_model=self.embedding_size, nhead=self.tf_nheads,
+        self.encoder_layer = nn.TransformerEncoderLayer(d_model=self.embedding_size, nhead=self.tf_nheads,
                                                    dropout=self.tf_dropout, dim_feedforward=self.tf_ff_size,
                                                    batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, self.tf_nlayers)
+        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, self.tf_nlayers)
         self.fc1 = nn.Linear(self.embedding_size*self.tf_max_len, self.fc2_size)
         self.fc2 = nn.Linear(self.fc2_size, self.output_dim)
 
@@ -89,16 +105,7 @@ class MB2016Transformer(pl.LightningModule):
     # pe_blank = torch.zeros(128, position_dim, w_dim, h_dim, self.embedding_size)
     # (self.pos_encoder_3d, torch.full(position_indices.shape[0]1,-1), position_indices)
     # torch.vmap(torch.index_select)(self.pos_encoder_3d, torch.full((position_indices.shape[0],0),-1), position_indices)
-    @staticmethod
-    def add_to_argparse(parser):
-        parser.add_argument("--embedding_size", type=int, default=EMBEDDING_SIZE)
-        parser.add_argument("--tf_nheads", type=int, default=TF_NHEADS)
-        parser.add_argument("--tf_nlayers", type=int, default=TF_LAYERS)
-        parser.add_argument("--tf_dropout", type=float, default=TF_DROPOUT)
-        parser.add_argument("--tf_ff_size", type=int, default=TF_FF_SIZE)
-        parser.add_argument("--tf_fc2_size", type=int, default=TF_FC2_SIZE)
-        parser.add_argument("--model_complexity", type=int, default=MODEL_COMPLEXITY)
-        return parser
+
 
     # def training_step(self, batch, batch_idx):
     #     xs, ys = batch  # unpack the batch

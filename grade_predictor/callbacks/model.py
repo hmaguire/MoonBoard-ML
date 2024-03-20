@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 import tempfile
 
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.rank_zero import rank_zero_only
+import lightning as L
+from lightning.pytorch.utilities.rank_zero import rank_zero_only
 import torch
 
 from .util import check_and_warn, logging
@@ -16,7 +16,7 @@ except ImportError:
     has_torchviz = False
 
 
-class ModelSizeLogger(pl.Callback):
+class ModelSizeLogger(L.Callback):
     """Logs information about model size (in parameters and on disk)."""
 
     def __init__(self, print_size=True):
@@ -48,7 +48,7 @@ class ModelSizeLogger(pl.Callback):
         return size_mb
 
 
-class GraphLogger(pl.Callback):
+class GraphLogger(L.Callback):
     """Logs a compute graph as an image."""
 
     def __init__(self, output_key="logits"):

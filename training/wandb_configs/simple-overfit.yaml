@@ -1,0 +1,23 @@
+seed_everything: 42
+model:
+  class_path: grade_predictor.models.MB2016Transformer
+  init_args:
+    embedding_size: 128
+    tf_nheads: 4
+    tf_ff_size: 1024
+    tf_nlayers: 4
+    tf_dropout: 0.2
+    fc2_size: 50
+    output_dim: 1
+    model_complexity: ["order_pos"]
+data:
+  class_path: grade_predictor.data.MB2016
+  init_args:
+    batch_size: 32
+trainer:
+  accelerator: auto
+  devices: auto
+  max_epochs: 3
+  enable_progress_bar: true
+
+

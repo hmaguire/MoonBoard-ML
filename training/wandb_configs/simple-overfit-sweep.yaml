@@ -1,0 +1,64 @@
+# first we specify what we're sweeping
+# we specify a program to run
+program: training/run_experiment_cli.py
+# we optionally specify how to run it, including setting default arguments
+command:
+    - ${env}
+    - ${interpreter}
+    - ${program}
+    - fit
+    - "--wandb"
+    - ${args}  # these arguments come from the sweep parameters below
+
+# and we specify which parameters to sweep over, what we're optimizing, and how we want to optimize it
+method: bayes
+early_terminate:
+    type: hyperband
+    min_iter: 5
+    eta: 1.5
+metric:
+    name: validation/loss
+    goal: minimize
+parameters:
+    # Transformer hyperparameters
+    model:
+      parameters:
+        class_path:
+          value: grade_predictor.models.MB2016Transformer
+        init_args:
+          parameters:
+            tf_nlayers:
+                values: [1, 2, 4, 8]
+            embedding_size:
+                values: [32, 128, 512]
+            tf_ff_size:
+                values: [ 128, 512, 2048]
+            tf_nheads:
+                values: [ 2, 4]
+            fc2_size:
+                values: [10, 20, 50]
+    # we can also fix some values, just like we set default arguments
+    seed_everything:
+      value: 42
+    data:
+      parameters:
+        class_path:
+          value: grade_predictor.data.MB2016
+        init_args:
+          parameters:
+            batch_size:
+              values: [32, 512, 1024]
+    trainer:
+      parameters:
+        accelerator:
+          value: auto
+        devices:
+          value: auto
+        max_epochs:
+          value: 100
+        enable_progress_bar:
+          value: true
+#        overfit_batches:
+#          value: 1
+        limit_test_batches:
+          value: 0

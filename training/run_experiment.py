@@ -3,8 +3,12 @@ import argparse
 from pathlib import Path
 
 import numpy as np
-import pytorch_lightning as pl
-from pytorch_lightning.utilities.rank_zero import rank_zero_info, rank_zero_only
+import lightning as L
+from lightning.pytorch.utilities.rank_zero import rank_zero_info, rank_zero_only
+from lightning.pytorch.cli import LightningCLI
+from lightning.pytorch.loggers import WandbLogger, TensorBoardLogger
+from lightning.pytorch.callbacks import ModelCheckpoint, ModelSummary, EarlyStopping
+from lightning.pytorch.tuner.tuning import Tuner
 import torch
 
 # Hide lines below until Lab 04
@@ -12,7 +16,7 @@ from grade_predictor import callbacks as cb
 
 # Hide lines above until Lab 04
 from grade_predictor import lit_models
-from training.util import DATA_CLASS_MODULE, import_class, MODEL_CLASS_MODULE, setup_data_and_model_from_args
+from training.util import DATA_CLASS_MODULE, import_class, MODEL_CLASS_MODULE, setup_data_and_model_from_args, data_and_model_classes
 
 
 # In order to ensure reproducible experiments, we must set random seeds.
@@ -25,10 +29,10 @@ def _setup_parser():
     parser = argparse.ArgumentParser(add_help=False)
 
     # Add Trainer specific arguments, such as --max_epochs, --gpus, --precision
-    trainer_parser = pl.Trainer.add_argparse_args(parser)
-    trainer_parser._action_groups[1].title = "Trainer Args"
-    parser = argparse.ArgumentParser(add_help=False, parents=[trainer_parser])
-    parser.set_defaults(max_epochs=1)
+    # trainer_parser = pl.Trainer.add_argparse_args(parser)
+    # trainer_parser._action_groups[1].title = "Trainer Args"
+    parser = argparse.ArgumentParser(add_help=False)
+    # parser.set_defaults(max_epochs=1)
 
     # Basic arguments
     # Hide lines below until Lab 04
@@ -75,15 +79,15 @@ def _setup_parser():
     data_class = import_class(f"{DATA_CLASS_MODULE}.{temp_args.data_class}")
     model_class = import_class(f"{MODEL_CLASS_MODULE}.{temp_args.model_class}")
 
-    # Get data, model, and LitModel specific arguments
-    data_group = parser.add_argument_group("Data Args")
-    data_class.add_to_argparse(data_group)
-
-    model_group = parser.add_argument_group("Model Args")
-    model_class.add_to_argparse(model_group)
-
-    lit_model_group = parser.add_argument_group("LitModel Args")
-    lit_models.BaseLitModel.add_to_argparse(lit_model_group)
+    # # Get data, model, and LitModel specific arguments
+    # data_group = parser.add_argument_group("Data Args")
+    # data_class.add_to_argparse(data_group)
+    #
+    # model_group = parser.add_argument_group("Model Args")
+    # model_class.add_to_argparse(model_group)
+    #
+    # lit_model_group = parser.add_argument_group("LitModel Args")
+    # lit_models.BaseLitModel.add_to_argparse(lit_model_group)
 
     parser.add_argument("--help", "-h", action="help")
     return parser
@@ -116,25 +120,36 @@ def main():
     ```
     python training/run_experiment.py --model_class=MLP --data_class=MNIST --help
     """
+
+
+
+
     parser = _setup_parser()
     args = parser.parse_args()
     data, model = setup_data_and_model_from_args(args)
-
+    model_class, data_class = data_and_model_classes(args)
     lit_model_class = lit_models.BaseLitModel
+
+
 
     if args.load_checkpoint is not None:
         lit_model = lit_model_class.load_from_checkpoint(args.load_checkpoint, args=args, model=model)
     else:
-        lit_model = lit_model_class(args=args, model=model)
+        lit_model = lit_model_class(model=model)
 
+    cli = LightningCLI(run=False)
+    # from command line
+    # model_class
+    # data_class
+    # logger?
     log_dir = Path("training") / "logs"
     _ensure_logging_dir(log_dir)
-    logger = pl.loggers.TensorBoardLogger(log_dir)
+    logger = TensorBoardLogger(log_dir)
     experiment_dir = logger.log_dir
 
     goldstar_metric = "validation/loss"
     filename_format = "epoch={epoch:04d}-validation.loss={validation/loss:.3f}"
-    checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    checkpoint_callback = ModelCheckpoint(
         save_top_k=5,
         filename=filename_format,
         monitor=goldstar_metric,
@@ -144,19 +159,19 @@ def main():
         every_n_epochs=args.check_val_every_n_epoch,
     )
 
-    summary_callback = pl.callbacks.ModelSummary(max_depth=2)
+    summary_callback = ModelSummary(max_depth=2)
 
     callbacks = [summary_callback, checkpoint_callback]
     # Hide lines below until Lab 04
     if args.wandb:
-        logger = pl.loggers.WandbLogger(log_model="all", save_dir=str(log_dir), job_type="train")
+        logger = WandbLogger(log_model="all", save_dir=str(log_dir), job_type="train", project="MB2016-grade-predictor")
         logger.watch(model, log_freq=max(100, args.log_every_n_steps))
         logger.log_hyperparams(vars(args))
         experiment_dir = logger.experiment.dir
     callbacks += [cb.ModelSizeLogger(), cb.LearningRateMonitor()]
     # Hide lines above until Lab 04
     if args.stop_early:
-        early_stopping_callback = pl.callbacks.EarlyStopping(
+        early_stopping_callback = EarlyStopping(
             monitor="validation/loss", mode="min", patience=args.stop_early
         )
         callbacks.append(early_stopping_callback)
@@ -166,36 +181,43 @@ def main():
     #     callbacks.append(cb.ImageToTextLogger())
 
     # Hide lines above until Lab 04
-    trainer = pl.Trainer.from_argparse_args(args, callbacks=callbacks, logger=logger)
-    # Hide lines below until Lab 05
-    if args.profile:
-        sched = torch.profiler.schedule(wait=0, warmup=3, active=4, repeat=0)
-        profiler = pl.profiler.PyTorchProfiler(export_to_chrome=True, schedule=sched, dirpath=experiment_dir)
-        profiler.STEP_FUNCTIONS = {"training_step"}  # only profile training
-    else:
-        profiler = pl.profiler.PassThroughProfiler()
+    # Tuner(lit_model)
 
-    trainer.profiler = profiler
-    # Hide lines above until Lab 05
+    trainer_defaults = {"callbacks": callbacks, "logger": logger}
+    cli = LightningCLI(trainer_defaults=trainer_defaults, run=False)
+    cli.trainer.fit(cli.model)
 
-    trainer.tune(lit_model, datamodule=data)  # If passing --auto_lr_find, this will set learning rate
-
-    trainer.fit(lit_model, datamodule=data)
+    # python training/run_experiment.py --model_class=MLP --data_class=MNIST --max_epochs=3
 
     # Hide lines below until Lab 05
-    trainer.profiler = pl.profiler.PassThroughProfiler()  # turn profiling off during testing
+    # if args.profile:
+    #     sched = torch.profiler.schedule(wait=0, warmup=3, active=4, repeat=0)
+    #     profiler = pl.profiler.PyTorchProfiler(export_to_chrome=True, schedule=sched, dirpath=experiment_dir)
+    #     profiler.STEP_FUNCTIONS = {"training_step"}  # only profile training
+    # else:
+    #     profiler = pl.profiler.PassThroughProfiler()
+    #
+    # trainer.profiler = profiler
     # Hide lines above until Lab 05
 
-    best_model_path = checkpoint_callback.best_model_path
-    if best_model_path:
-        rank_zero_info(f"Best model saved at: {best_model_path}")
-        # Hide lines below until Lab 04
-        if args.wandb:
-            rank_zero_info("Best model also uploaded to W&B ")
-        # Hide lines above until Lab 04
-        trainer.test(datamodule=data, ckpt_path=best_model_path)
-    else:
-        trainer.test(lit_model, datamodule=data)
+    # Tuner(lit_model, datamodule=data_class)  # If passing --auto_lr_find, this will set learning rate
+
+    # trainer.fit(lit_model, datamodule=data_class)
+
+    # Hide lines below until Lab 05
+    # trainer.profiler = pl.profiler.PassThroughProfiler()  # turn profiling off during testing
+    # Hide lines above until Lab 05
+
+    # best_model_path = checkpoint_callback.best_model_path
+    # if best_model_path:
+    #     rank_zero_info(f"Best model saved at: {best_model_path}")
+    #     # Hide lines below until Lab 04
+    #     if args.wandb:
+    #         rank_zero_info("Best model also uploaded to W&B ")
+    #     # Hide lines above until Lab 04
+    #     trainer.test(datamodule=data, ckpt_path=best_model_path)
+    # else:
+    #     trainer.test(lit_model, datamodule=data)
 
 
 if __name__ == "__main__":

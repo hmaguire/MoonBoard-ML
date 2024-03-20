@@ -1,6 +1,7 @@
 import itertools
 import pickle
 from typing import Optional
+import argparse
 
 from grade_predictor.data.base_data_module import BaseDataModule, load_and_print_info
 from grade_predictor.data.util import BaseDataset, split_dataset
@@ -23,16 +24,25 @@ import torch
 class MB2016(BaseDataModule):
     """MB2016 dataset: Scraped Moonboard 2016 climbs information"""
 
-    def __init__(self, args=None) -> None:
-        super().__init__(args)
+    def __init__(self,
+                 min_repeats=metadata.MIN_REPEATS,
+                 min_grade_count=metadata.MIN_GRADE_COUNT,
+                 max_start_holds=metadata.MAX_START_HOLDS,
+                 min_mid_holds=metadata.MIN_MID_HOLDS,
+                 max_mid_holds=metadata.MAX_MID_HOLDS,
+                 max_end_holds=metadata.MAX_END_HOLDS,
+                 with_start_mid_end_tokens=False,
+                 batch_size: int = 128,
+                 args: argparse.Namespace = None) -> None:
+        super().__init__(batch_size)
 
-        self.min_repeats = self.args.get("min_repeats", metadata.MIN_REPEATS)
-        self.min_grade_count = self.args.get("min_grade_count", metadata.MIN_GRADE_COUNT)
-        self.max_start_holds = self.args.get("max_start_holds", metadata.MAX_START_HOLDS)
-        self.min_mid_holds = self.args.get("min_mid_holds", metadata.MIN_MID_HOLDS)
-        self.max_mid_holds = self.args.get("max_mid_holds", metadata.MAX_MID_HOLDS)
-        self.max_end_holds = self.args.get("max_end_holds", metadata.MAX_END_HOLDS)
-        self.with_start_mid_end_tokens = self.args.get("with_start_mid_end_tokens", False)
+        self.min_repeats = min_repeats
+        self.min_grade_count = min_grade_count
+        self.max_start_holds = max_start_holds
+        self.min_mid_holds = min_mid_holds
+        self.max_mid_holds = max_mid_holds
+        self.max_end_holds = max_end_holds
+        self.with_start_mid_end_tokens = with_start_mid_end_tokens
         self.grade_count = None
         self.grades = None
 
@@ -74,7 +84,8 @@ class MB2016(BaseDataModule):
         sorted_grades = natsort.natsorted(data["grade"].unique())
         grade_to_float = {}
         for i, value in enumerate(sorted_grades):
-            grade_to_float[value] = np.array([np.float32(i)])
+            grade_to_float[value] = np.array([np.float32(i)])/len(sorted_grades)
+
         data["numeric_grade"] = data["grade"].map(grade_to_float)
 
         # Clean dataset of extraneous climbs
@@ -106,7 +117,7 @@ class MB2016(BaseDataModule):
                 data = pd.DataFrame.from_dict(pickle_data)
 
         # MinMaxScaler for target grade: Speeds up training
-        self.target_transform.fit_transform(data["numeric_grade"].to_numpy().reshape(-1, 1))
+        # self.target_transform.fit_transform(data["numeric_grade"].to_numpy().reshape(-1, 1))
 
         # test / train split, keep % of grades equal in train and test.
         x_trainval, x_test, y_trainval, y_test = train_test_split(
@@ -123,11 +134,11 @@ class MB2016(BaseDataModule):
 
 
         if stage == "fit" or stage is None:
-            data_trainval = BaseDataset(x_trainval, y_trainval, target_transform=self.target_transform.transform)
+            data_trainval = BaseDataset(x_trainval, y_trainval)
             self.data_train, self.data_val = split_dataset(base_dataset=data_trainval, fraction=0.8, seed=42)
 
         if stage == "test" or stage is None:
-            self.data_test = BaseDataset(x_test, y_test, target_transform=self.target_transform.transform)
+            self.data_test = BaseDataset(x_test, y_test)
 
     def __repr__(self):
         basic = "MB2016 Dataset"
@@ -210,6 +221,10 @@ class MB2016(BaseDataModule):
         output.columns = ["id_tokens", "order_tokens", "rel_x_tokens", "rel_y_tokens"]
         return output
 
+    def config(self):
+        """Return important settings of the dataset, which will be passed to instantiate models."""
+        return {"input_dims": self.input_dims, "output_dims": self.output_dims,
+                "token_dict_size": self.id_token_dict_size, "max_sequence": self.max_sequence}
 
 # def _grade_labels_to_one_hot_tensor(df_labels):
 #     lb = LabelBinarizer()

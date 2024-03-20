@@ -6,7 +6,8 @@ from typing import Collection, Optional, Tuple, Union
 
 from grade_predictor.data.util import BaseDataset
 import grade_predictor.metadata.shared as metadata
-import pytorch_lightning as pl
+import lightning as L
+from lightning.pytorch.core.datamodule import LightningDataModule
 import torch
 from torch.utils.data import ConcatDataset, DataLoader
 
@@ -33,18 +34,21 @@ DEFAULT_NUM_WORKERS = NUM_AVAIL_CPUS
 DEFAULT_NUM_WORKERS = NUM_AVAIL_CPUS // NUM_AVAIL_GPUS if NUM_AVAIL_GPUS else DEFAULT_NUM_WORKERS
 
 
-class BaseDataModule(pl.LightningDataModule):
+class BaseDataModule(LightningDataModule):
     """Base for all of our LightningDataModules.
 
     Learn more at about LDMs at https://pytorch-lightning.readthedocs.io/en/stable/extensions/datamodules.html
     """
 
-    def __init__(self, args: argparse.Namespace = None) -> None:
+    def __init__(self,
+                 batch_size: int = 128,
+                 # num_workers: int = DEFAULT_NUM_WORKERS,
+                 num_workers: int = 0,
+                 args: argparse.Namespace = None) -> None:
         super().__init__()
         self.args = vars(args) if args is not None else {}
-        self.batch_size = self.args.get("batch_size", BATCH_SIZE)
-        self.num_workers = self.args.get("num_workers", DEFAULT_NUM_WORKERS)
-
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         self.on_gpu = isinstance(self.args.get("gpus", None), (str, int))
 
         # Make sure to set the variables below in subclasses
@@ -60,26 +64,7 @@ class BaseDataModule(pl.LightningDataModule):
     def data_dirname(cls):
         return metadata.DATA_DIRNAME
 
-    @staticmethod
-    def add_to_argparse(parser):
-        parser.add_argument(
-            "--batch_size",
-            type=int,
-            default=BATCH_SIZE,
-            help=f"Number of examples to operate on per forward step. Default is {BATCH_SIZE}.",
-        )
-        parser.add_argument(
-            "--num_workers",
-            type=int,
-            default=DEFAULT_NUM_WORKERS,
-            help=f"Number of additional processes to load data. Default is {DEFAULT_NUM_WORKERS}.",
-        )
-        return parser
 
-    def config(self):
-        """Return important settings of the dataset, which will be passed to instantiate models."""
-        return {"input_dims": self.input_dims, "output_dims": self.output_dims,
-                "token_dict_size": self.id_token_dict_size, "max_sequence": self.max_sequence}
 
     def prepare_data(self, *args, **kwargs) -> None:
         """Take the first steps to prepare data for use.
@@ -102,6 +87,7 @@ class BaseDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.on_gpu,
+            # persistent_workers=True
         )
 
     def val_dataloader(self):

@@ -21,7 +21,8 @@ nbconvert>=6.5,<6.6
 seaborn>=0.13,<0.14
 tornado>=6.3,<6.4
 # versioned to improve stability
-pytorch-lightning==2.2.1
+lightning
+lightning[pytorch-extra]
 torchmetrics<0.8
 wandb==0.12.17
 # ml moonboard
